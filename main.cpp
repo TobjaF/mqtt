@@ -1,48 +1,36 @@
 /** MQTT Publish von Sensordaten */
 #include "mbed.h"
 #include "OLEDDisplay.h"
-#include "Motor.h"
-#include "Servo.h"
-
+/*
 #if MBED_CONF_IOTKIT_HTS221_SENSOR == true
 #include "HTS221Sensor.h"
 #endif
 #if MBED_CONF_IOTKIT_BMP180_SENSOR == true
 #include "BMP180Wrapper.h"
 #endif
-#include "MFRC522.h"
+*/
 
-#ifdef TARGET_K64F
+
 #include "QEI.h"
 
-//Use X2 encoding by default.
-QEI wheel (MBED_CONF_IOTKIT_BUTTON2, MBED_CONF_IOTKIT_BUTTON3, NC, 624);
-#endif
+
 
 #include <MQTTClientMbedOs.h>
 #include <MQTTNetwork.h>
 #include <MQTTClient.h>
 #include <MQTTmbed.h> // Countdown
 
-// Sensoren wo Daten fuer Topics produzieren
-static DevI2C devI2c( MBED_CONF_IOTKIT_I2C_SDA, MBED_CONF_IOTKIT_I2C_SCL );
-#if MBED_CONF_IOTKIT_HTS221_SENSOR == true
-static HTS221Sensor hum_temp(&devI2c);
-#endif
-#if MBED_CONF_IOTKIT_BMP180_SENSOR == true
-static BMP180Wrapper hum_temp( &devI2c );
-#endif
-AnalogIn hallSensor( MBED_CONF_IOTKIT_HALL_SENSOR );
-DigitalIn button( MBED_CONF_IOTKIT_BUTTON1 );
+//Threads
+#include "platform/mbed_thread.h"
+
+///////////////////////////////////////////////////////////////////////
+//////////////////// GLOBALE VARIABLEN START //////////////////////////
+///////////////////////////////////////////////////////////////////////
 
 // Topic's publish
-char* topicTEMP = (char*) "iotkit/sensor";
-char* topicALERT = (char*) "iotkit/alert";
-char* topicBUTTON = (char*) "iotkit/button";
-char* topicRFID = (char*) "iotkit/rfid";
-char* topicENCODER = (char*) "iotkit/encoder";
+char* topicLED = (char*) "iotkit_tobja/actors/led"
 // Topic's subscribe
-char* topicActors = (char*) "iotkit/actors/#";
+char* topicActors = (char*) "iotkit_tobja/actors/#";
 // MQTT Brocker
 char* hostname = (char*) "cloud.tbz.ch";
 int port = 1883;
@@ -51,25 +39,38 @@ MQTT::Message message;
 // I/O Buffer
 char buf[100];
 
-// Klassifikation 
-char cls[3][10] = { "low", "middle", "high" };
-int type = 0;
+
+
+
+int global_state, wheel_oldvalue, wheel_newvalue = 0;
 
 // UI
 OLEDDisplay oled( MBED_CONF_IOTKIT_OLED_RST, MBED_CONF_IOTKIT_OLED_SDA, MBED_CONF_IOTKIT_OLED_SCL );
-DigitalOut alert( MBED_CONF_IOTKIT_LED3 );
 
-// Aktore(n)
-PwmOut speaker( MBED_CONF_IOTKIT_BUZZER );
-Motor m1( MBED_CONF_IOTKIT_MOTOR2_PWM, MBED_CONF_IOTKIT_MOTOR2_FWD, MBED_CONF_IOTKIT_MOTOR2_REV ); // PWM, Vorwaerts, Rueckwarts
-// NFC/RFID Reader (SPI)
-MFRC522    rfidReader( MBED_CONF_IOTKIT_RFID_MOSI, MBED_CONF_IOTKIT_RFID_MISO, MBED_CONF_IOTKIT_RFID_SCLK, MBED_CONF_IOTKIT_RFID_SS, MBED_CONF_IOTKIT_RFID_RST ); 
-// Servo2 (Pin mit PWM, K64F = D11, andere D9)
-#ifdef TARGET_K64F
-Servo servo2 ( MBED_CONF_IOTKIT_SERVO3 );
-#else
-Servo servo2 ( MBED_CONF_IOTKIT_SERVO2 );
-#endif
+
+//Use X2 encoding by default.
+QEI wheel (MBED_CONF_IOTKIT_BUTTON2, MBED_CONF_IOTKIT_BUTTON3, NC, 624);
+
+
+DigitalOut led1( MBED_CONF_IOTKIT_LED1 );
+DigitalOut led2( MBED_CONF_IOTKIT_LED2 );
+DigitalOut led3( MBED_CONF_IOTKIT_LED3 );
+DigitalOut led4( MBED_CONF_IOTKIT_LED4 );
+
+
+Thread thread_mosfetled;
+Thread thread_spiled;
+Thread thread_wheel_watch;
+
+///////////////////////////////////////////////////////////////////////
+//////////////////// GLOBALE VARIABLEN ENDE ///////////////////////////
+///////////////////////////////////////////////////////////////////////
+
+
+
+///////////////////////////////////////////////////////////////////////
+//////////////////// MQTT-FUNKTIONEN START ////////////////////////////
+///////////////////////////////////////////////////////////////////////
 
 /** Hilfsfunktion zum Publizieren auf MQTT Broker */
 void publish( MQTTNetwork &mqttNetwork, MQTT::Client<MQTTNetwork, Countdown> &client, char* topic )
@@ -94,27 +95,238 @@ void messageArrived( MQTT::MessageData& md )
     MQTT::Message &message = md.message;
     printf("Message arrived: qos %d, retained %d, dup %d, packetid %d\n", message.qos, message.retained, message.dup, message.id);
     printf("Topic %.*s, ", md.topicName.lenstring.len, (char*) md.topicName.lenstring.data );
-    // MQTT schickt kein \0, deshalb manuell anfuegen
-    ((char*) message.payload)[message.payloadlen] = '\0';
-    printf("Payload %s\n", (char*) message.payload);
+    printf("Payload %.*s\n", message.payloadlen, (char*) message.payload);
+    
+    if  ( strncmp( (char*) md.topicName.lenstring.data + md.topicName.lenstring.len - 3, "led", 3) == 0  
+        && message.payloadlen >= 2) {
 
-    // Aktoren
-    if  ( strncmp( (char*) md.topicName.lenstring.data + md.topicName.lenstring.len - 6, "servo2", 6) == 0 )
-    {
-        sscanf( (char*) message.payload, "%f", &value );
-        servo2 = value;
-        printf( "Servo2 %f\n", value );
-    }               
+        DigitalOut * ledN;
+        switch(((char*) message.payload)[0]) {
+            case '0': global_state = 0; printf("Status 0\n"); break;
+            case '1': global_state = 1; printf("Status 1\n"); break;
+            case '2': global_state = 2; printf("Status 2\n"); break;
+            case '3': global_state = 3; printf("Status 3\n"); break;
+            case '4': global_state = 4; printf("Status 4\n"); break;
+            case '5': global_state = 5; printf("Status 5\n"); break;
+            case '6': global_state = 6; printf("Status 6\n"); break;
+            case '7': global_state = 7; printf("Status 7\n"); break;
+            default: break;
+            
+        }
+
+        if(((char*) message.payload)[1] == '1') {
+            *ledN = 1;
+        }else{
+            *ledN = 0;
+        }
+    }
+
 }
 
-/** Hauptprogramm */
+///////////////////////////////////////////////////////////////////////
+//////////////////// MQTT-FUNKTIONEN ENDE /////////////////////////////
+///////////////////////////////////////////////////////////////////////
+
+
+
+///////////////////////////////////////////////////////////////////////
+//////////////////// LED - STEUERUNG START ////////////////////////////
+///////////////////////////////////////////////////////////////////////
+
+
+void off()
+{
+    printf( "off \n" );
+    red = 0;
+    green = 0;
+    blue = 0;
+    thread_sleep_for( 1000 );
+}
+
+/** 3 x 3 Werte */
+unsigned int strip[9];
+
+void writeLED()
+{
+    for ( int p = 0; p < 9; p++ )
+        spi.write( strip[p] );
+}
+
+void clearLED()
+{
+    for ( int p = 0; p < 9; p++ ) 
+    {
+        strip[p] = 0;
+        spi.write( strip[p] );
+    }
+}
+
+void dim( PwmOut& pin )
+{
+    printf( "dim\n" );
+    for ( float i = 0.0f; i < 1.0f; i += .01f )
+    {
+        pin = i;
+        thread_sleep_for( 200 );
+    }
+    thread_sleep_for( 1000 );
+    
+}
+
+void thread_mosfetled_func() {
+    while(true) {
+        dim( red );
+        off();
+        dim( green );
+        off();
+        dim( blue );
+        off();
+        
+        red = 1;
+        thread_sleep_for( 1000 );
+        off();
+        
+        green = 1;
+        thread_sleep_for( 1000 );
+        off();
+        
+        blue = 1;
+        thread_sleep_for( 1000 );
+        off();
+        
+        red = 1;
+        blue = 1;
+        green = 1;
+        thread_sleep_for( 1000 );
+        off();
+    }
+}
+
+void thread_spiled_func() {
+    while(true) {
+        //for ( int i = 0; i < 9; i++ )
+            //strip[1] = 1;//rand() % 64 + 1; // the function rand() was replace by wheel.getPulses() to control the brightness with the wheel encoder/switch
+       // if (status % 7 == 0 ){
+            //brightness = 7 / status;
+       // }
+        if (status == 0)
+        {
+            for ( int i = 0; i < 9; i++ )
+                strip[i] = 0;
+        }
+        if (status == 1)
+        {
+            for ( int i = 0; i < 3; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 3; i < 9; i++ )
+                strip[i] = 0;
+        }
+        if (status == 2)
+        {
+            for ( int i = 3; i < 6; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 0; i < 3; i++ )
+                strip[i] = 0;
+
+            for ( int i = 6; i < 9; i++ )
+                strip[i] = 0;
+        }
+        if (status == 3)
+        {
+            for ( int i = 6; i < 9; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 0; i < 6; i++ )
+                strip[i] = 0;
+        }
+        if (status == 4)
+        {
+            for ( int i = 0; i < 6; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 6; i < 9; i++ )
+                strip[i] = 0;
+        }
+        if (status == 5)
+        {
+            for ( int i = 0; i < 3; i++ )
+                strip[i] = 0;
+
+            for ( int i = 3; i < 9; i++ )
+                strip[i] = brightness;
+        }
+        if (status == 6)
+        {
+            for ( int i = 0; i < 3; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 6; i < 9; i++ )
+                strip[i] = brightness;
+
+            for ( int i = 3; i < 6; i++ )
+                strip[i] = 0;    
+        }
+        if (status == 7)
+        {
+            for ( int i = 0; i < 9; i++ )
+                strip[i] = brightness;
+        }
+        //else{for ( int i = 0; i < 9; i++ )
+         //       strip[i] = 0;}
+        //strip[3] = 1;
+        //strip[2] = 1;
+        //strip[0] = 64;
+
+        writeLED();
+        thread_sleep_for( 200 );
+    }
+}
+    
+    
+    
+    
+    
+    while(true) {
+        for ( int i = 0; i < 9; i++ )
+            strip[i] = rand() % 64 + 1;
+            
+        writeLED();
+        thread_sleep_for( 200 );
+    }
+}
+
+//////////////////////////////////////////////////////////////////////
+//////////////////// LED - STEUERUNG ENDE ////////////////////////////
+//////////////////////////////////////////////////////////////////////
+
+
+void thread_wheel_watch_func() {
+    oled.cursor( 1, 0 );
+        wheel_newvalue = wheel.getPulses(); 
+        if  ( wheel_newvalue != wheel_oldvalue ){
+            if ( wheel_newvalue > wheel_oldvalue) global_status =  (global_status + 1)%8
+            }
+            else {
+             global_status =  (global_status- 1)%8
+            }
+        oled.printf("Pulses: %6i\n", wheel_newvalue );
+        wheel_oldvalue = wheel_newvalue;
+        thread_sleep_for( 100 );    
+}
+
+
+
+
+//////////////////////////////////////////////////////////////////////
+//////////////////// MAIN FUNCTION START /////////////////////////////
+//////////////////////////////////////////////////////////////////////
 int main()
 {
     uint8_t id;
     float temp, hum;
     int encoder;
-    alert = 0;
-    servo2 = 0.5f;
     
     oled.clear();
     oled.printf( "MQTTPublish\r\n" );
@@ -161,96 +373,23 @@ int main()
     client.subscribe( topicActors, MQTT::QOS0, messageArrived );
     printf("MQTT subscribe %s\n", topicActors );
     
-    /* Init all sensors with default params */
-    hum_temp.init(NULL);
-    hum_temp.enable(); 
-    // RFID Reader initialisieren
-    rfidReader.PCD_Init();      
+
+    led1 = 0;led2 = 0;led3 = 0;led4 = 0;
+    
+    
+    thread_spiled.start(thread_spiled_func);
+    thread_spiled.start(thread_spiled_func);
+    thread_wheel_watch.start(thread_wheel_watch_func);
 
     while   ( 1 ) 
     {
-        // Temperator und Luftfeuchtigkeit
-        hum_temp.read_id(&id);
-        hum_temp.get_temperature(&temp);
-        hum_temp.get_humidity(&hum);    
-        if  ( type == 0 )
-        {
-            temp -= 5.0f;
-            m1.speed( 0.0f );
-        }
-        else if  ( type == 2 )
-        {
-            temp += 5.0f;
-            m1.speed( 1.0f );
-        }
-        else
-        {
-            m1.speed( 0.75f );
-        }
-        sprintf( buf, "0x%X,%2.2f,%2.1f,%s", id, temp, hum, cls[type] ); 
-        type++;
-        if  ( type > 2 )
-            type = 0;       
-        publish( mqttNetwork, client, topicTEMP );
-        
-        // alert Tuer offen 
-        printf( "Hall %4.4f, alert %d\n", hallSensor.read(), alert.read() );
-        if  ( hallSensor.read() > 0.6f )
-        {
-            // nur einmal Melden!, bis Reset
-            if  ( alert.read() == 0 )
-            {
-                sprintf( buf, "alert: hall" );
-                message.payload = (void*) buf;
-                message.payloadlen = strlen(buf)+1;
-                publish( mqttNetwork, client, topicALERT );
-                alert = 1;
-            }
-            speaker.period( 1.0 / 3969.0 );      // 3969 = Tonfrequenz in Hz
-            speaker = 0.5f;
-            thread_sleep_for( 500 );
-            speaker.period( 1.0 / 2800.0 );
-            thread_sleep_for( 500 );
-        }
-        else
-        {
-            alert = 0;
-            speaker = 0.0f;
-        }
-
-        // Button (nur wenn gedrueckt)
-        if  ( button == 0 )
-        {
-            sprintf( buf, "ON" );
-            publish( mqttNetwork, client, topicBUTTON );
-        }
-
-        // RFID Reader
-        if ( rfidReader.PICC_IsNewCardPresent())
-            if ( rfidReader.PICC_ReadCardSerial()) 
-            {
-                // Print Card UID (2-stellig mit Vornullen, Hexadecimal)
-                printf("Card UID: ");
-                for ( int i = 0; i < rfidReader.uid.size; i++ )
-                    printf("%02X:", rfidReader.uid.uidByte[i]);
-                printf("\n");
-                
-                // Print Card type
-                int piccType = rfidReader.PICC_GetType(rfidReader.uid.sak);
-                printf("PICC Type: %s \n", rfidReader.PICC_GetTypeName(piccType) );
-                
-                sprintf( buf, "%02X:%02X:%02X:%02X:", rfidReader.uid.uidByte[0], rfidReader.uid.uidByte[1], rfidReader.uid.uidByte[2], rfidReader.uid.uidByte[3] );
-                publish( mqttNetwork, client, topicRFID );                
-                
-            }         
-
-#ifdef TARGET_K64F
-
         // Encoder
-        encoder = wheel.getPulses();
+        encoder = wheel.getRevolutions();
+        // wheel.getRevolutions();
         sprintf( buf, "%d", encoder );
         publish( mqttNetwork, client, topicENCODER );
-#endif
+        
+        //publish( mqttNetwork, client, topicLED );
 
         client.yield    ( 1000 );                   // MQTT Client darf empfangen
         thread_sleep_for( 500 );
@@ -262,3 +401,7 @@ int main()
 
     mqttNetwork.disconnect();    
 }
+
+//////////////////////////////////////////////////////////////////////
+//////////////////// MAIN FUNCTION ENDE //////////////////////////////
+//////////////////////////////////////////////////////////////////////
