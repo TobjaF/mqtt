@@ -57,7 +57,7 @@ DigitalOut led2( MBED_CONF_IOTKIT_LED2 );
 DigitalOut led3( MBED_CONF_IOTKIT_LED3 );
 DigitalOut led4( MBED_CONF_IOTKIT_LED4 );
 
-
+//Test
 Thread thread_mosfetled;
 Thread thread_spiled;
 Thread thread_wheel_watch;
