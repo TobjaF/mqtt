@@ -1,20 +1,7 @@
 /** MQTT Publish von Sensordaten */
 #include "mbed.h"
 #include "OLEDDisplay.h"
-/*
-#if MBED_CONF_IOTKIT_HTS221_SENSOR == true
-#include "HTS221Sensor.h"
-#endif
-#if MBED_CONF_IOTKIT_BMP180_SENSOR == true
-#include "BMP180Wrapper.h"
-#endif
-*/
-
-
 #include "QEI.h"
-
-
-
 #include <MQTTClientMbedOs.h>
 #include <MQTTNetwork.h>
 #include <MQTTClient.h>
@@ -28,7 +15,7 @@
 ///////////////////////////////////////////////////////////////////////
 
 // Topic's publish
-char* topicLED = (char*) "iotkit_tobja/actors/led"
+char* topicLED = (char*) "iotkit_tobja/actors/led";
 // Topic's subscribe
 char* topicActors = (char*) "iotkit_tobja/actors/#";
 // MQTT Brocker
@@ -39,6 +26,15 @@ MQTT::Message message;
 // I/O Buffer
 char buf[100];
 
+
+
+// MOSFET controlled LED strip
+PwmOut green( MBED_CONF_IOTKIT_MOSFET1 );
+PwmOut red( MBED_CONF_IOTKIT_MOSFET2 );
+PwmOut blue( MBED_CONF_IOTKIT_MOSFET3 );
+
+// SPI controlled LED strip
+SPI spi( MBED_CONF_IOTKIT_LED_SPI_MOSI, NC, MBED_CONF_IOTKIT_LED_SPI_SCLK ); // mosi, miso, sclk
 
 
 
@@ -57,7 +53,7 @@ DigitalOut led2( MBED_CONF_IOTKIT_LED2 );
 DigitalOut led3( MBED_CONF_IOTKIT_LED3 );
 DigitalOut led4( MBED_CONF_IOTKIT_LED4 );
 
-//Test
+
 Thread thread_mosfetled;
 Thread thread_spiled;
 Thread thread_wheel_watch;
@@ -209,12 +205,12 @@ void thread_spiled_func() {
        // if (status % 7 == 0 ){
             //brightness = 7 / status;
        // }
-        if (status == 0)
+        if (global_state == 0)
         {
             for ( int i = 0; i < 9; i++ )
                 strip[i] = 0;
         }
-        if (status == 1)
+        if (global_state == 1)
         {
             for ( int i = 0; i < 3; i++ )
                 strip[i] = brightness;
@@ -222,7 +218,7 @@ void thread_spiled_func() {
             for ( int i = 3; i < 9; i++ )
                 strip[i] = 0;
         }
-        if (status == 2)
+        if (global_state == 2)
         {
             for ( int i = 3; i < 6; i++ )
                 strip[i] = brightness;
@@ -233,7 +229,7 @@ void thread_spiled_func() {
             for ( int i = 6; i < 9; i++ )
                 strip[i] = 0;
         }
-        if (status == 3)
+        if (global_state == 3)
         {
             for ( int i = 6; i < 9; i++ )
                 strip[i] = brightness;
@@ -241,7 +237,7 @@ void thread_spiled_func() {
             for ( int i = 0; i < 6; i++ )
                 strip[i] = 0;
         }
-        if (status == 4)
+        if (global_state == 4)
         {
             for ( int i = 0; i < 6; i++ )
                 strip[i] = brightness;
@@ -249,7 +245,7 @@ void thread_spiled_func() {
             for ( int i = 6; i < 9; i++ )
                 strip[i] = 0;
         }
-        if (status == 5)
+        if (global_state == 5)
         {
             for ( int i = 0; i < 3; i++ )
                 strip[i] = 0;
@@ -257,7 +253,7 @@ void thread_spiled_func() {
             for ( int i = 3; i < 9; i++ )
                 strip[i] = brightness;
         }
-        if (status == 6)
+        if (global_state == 6)
         {
             for ( int i = 0; i < 3; i++ )
                 strip[i] = brightness;
@@ -268,7 +264,7 @@ void thread_spiled_func() {
             for ( int i = 3; i < 6; i++ )
                 strip[i] = 0;    
         }
-        if (status == 7)
+        if (global_state == 7)
         {
             for ( int i = 0; i < 9; i++ )
                 strip[i] = brightness;
