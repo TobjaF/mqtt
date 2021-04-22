@@ -110,11 +110,6 @@ void messageArrived( MQTT::MessageData& md )
             
         }
 
-        if(((char*) message.payload)[1] == '1') {
-            *ledN = 1;
-        }else{
-            *ledN = 0;
-        }
     }
 
 }
@@ -205,6 +200,9 @@ void thread_spiled_func() {
        // if (status % 7 == 0 ){
             //brightness = 7 / status;
        // }
+       int brightness = wheel_newvalue;
+       if (brightness < 0) brightness *= -1;
+       
         if (global_state == 0)
         {
             for ( int i = 0; i < 9; i++ )
@@ -269,11 +267,6 @@ void thread_spiled_func() {
             for ( int i = 0; i < 9; i++ )
                 strip[i] = brightness;
         }
-        //else{for ( int i = 0; i < 9; i++ )
-         //       strip[i] = 0;}
-        //strip[3] = 1;
-        //strip[2] = 1;
-        //strip[0] = 64;
 
         writeLED();
         thread_sleep_for( 200 );
@@ -282,16 +275,6 @@ void thread_spiled_func() {
     
     
     
-    
-    
-    while(true) {
-        for ( int i = 0; i < 9; i++ )
-            strip[i] = rand() % 64 + 1;
-            
-        writeLED();
-        thread_sleep_for( 200 );
-    }
-}
 
 //////////////////////////////////////////////////////////////////////
 //////////////////// LED - STEUERUNG ENDE ////////////////////////////
@@ -307,6 +290,12 @@ void thread_wheel_watch_func() {
             else {
              global_status =  (global_status- 1)%8
             }
+            
+        sprintf( buf, "%d", global_status);
+        publish( mqttNetwork, client, topicLED );    
+            
+        //mqtt publish    
+            
         oled.printf("Pulses: %6i\n", wheel_newvalue );
         wheel_oldvalue = wheel_newvalue;
         thread_sleep_for( 100 );    
