@@ -15,9 +15,9 @@
 ///////////////////////////////////////////////////////////////////////
 
 // Topic's publish
-char* topicLED = (char*) "iotkit_tobja_test/actors/led";
+char* topicLED = (char*) "iotkit_LED/actors/led";
 // Topic's subscribe
-char* topicActors = (char*) "iotkit_tobja/actors/#";
+char* topicActors = (char*) "iotkit_LED/actors/#";
 // MQTT Brocker
 char* hostname = (char*) "cloud.tbz.ch";
 int port = 1883;
