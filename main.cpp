@@ -58,6 +58,8 @@ Thread thread_mosfetled;
 Thread thread_spiled;
 Thread thread_wheel_watch;
 
+void global_state_to_led(); 
+
 ///////////////////////////////////////////////////////////////////////
 //////////////////// GLOBALE VARIABLEN ENDE ///////////////////////////
 ///////////////////////////////////////////////////////////////////////
@@ -95,7 +97,7 @@ void messageArrived( MQTT::MessageData& md )
     
     if  ( strncmp( (char*) md.topicName.lenstring.data + md.topicName.lenstring.len - 3, "led", 3) == 0  
         && message.payloadlen >= 2) {
-
+        int global_state_save = global_state;
         DigitalOut * ledN;
         switch(((char*) message.payload)[0]) {
             case '0': global_state = 0; printf("Status 0\n"); break;
@@ -109,7 +111,9 @@ void messageArrived( MQTT::MessageData& md )
             default: break;
             
         }
-
+            if (global_state_save != global_state){
+                global_state_to_led();
+                }
     }
 
 }
@@ -193,13 +197,8 @@ void thread_mosfetled_func() {
     }
 }
 
-void thread_spiled_func() {
-    while(true) {
-        //for ( int i = 0; i < 9; i++ )
-            //strip[1] = 1;//rand() % 64 + 1; // the function rand() was replace by wheel.getPulses() to control the brightness with the wheel encoder/switch
-       // if (status % 7 == 0 ){
-            //brightness = 7 / status;
-       // }
+void global_state_to_led() {
+    
        int brightness = wheel_newvalue;
        if (brightness < 0) brightness *= -1;
        
@@ -269,8 +268,7 @@ void thread_spiled_func() {
         }
 
         writeLED();
-        thread_sleep_for( 200 );
-    }
+
 }
     
     
@@ -340,8 +338,8 @@ int main()
 
     led1 = 0;led2 = 0;led3 = 0;led4 = 0;
     
-    thread_spiled.start(thread_spiled_func);
-    thread_mosfetled.start(thread_mosfetled_func);
+    //thread_spiled.start(thread_spiled_func);
+    //thread_mosfetled.start(thread_mosfetled_func);
     //thread_spiled.start(thread_spiled_func);
     //thread_wheel_watch.start(thread_wheel_watch_func);
 
