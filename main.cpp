@@ -357,6 +357,10 @@ int main()
              global_state =  (global_state- 1)%8;
             }
             
+        if (global_state < 0){
+            global_state *= -1;
+        }    
+            
         sprintf( buf, "%d", global_state);
         publish( mqttNetwork, client, topicLED );    
             
