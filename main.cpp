@@ -111,9 +111,9 @@ void messageArrived( MQTT::MessageData& md )
             default: break;
             
         }
-            if (global_state_save != global_state){
+         
                 global_state_to_led();
-                }
+ 
     }
 
 }
