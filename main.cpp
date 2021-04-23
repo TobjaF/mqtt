@@ -297,7 +297,7 @@ int main()
     oled.printf( "host: %s:%s\r\n", hostname, port );
 
     printf("\nConnecting to %s...\n", MBED_CONF_APP_WIFI_SSID);
-    oled.printf( "SSID: %s\r\n", MBED_CONF_APP_WIFI_SSID );
+    //oled.printf( "SSID: %s\r\n", MBED_CONF_APP_WIFI_SSID );
     
     // Connect to the network with the default networking interface
     // if you use WiFi: see mbed_app.json for the credentials
