@@ -76,8 +76,8 @@ void publish( MQTTNetwork &mqttNetwork, MQTT::Client<MQTTNetwork, Countdown> &cl
     MQTT::Message message;    
     oled.cursor( 2, 0 );
     oled.printf( "Topi: %s\n", topic );
-    oled.cursor( 3, 0 );    
-    oled.printf( "Push: %s\n", buf );
+    //oled.cursor( 3, 0 );    
+    //oled.printf( "Push: %s\n", buf );
     message.qos = MQTT::QOS0;
     message.retained = false;
     message.dup = false;
@@ -111,9 +111,12 @@ void messageArrived( MQTT::MessageData& md )
             default: break;
             
         }
-         
-                global_state_to_led();
  
+                global_state_to_led();
+                
+                oled.cursor( 3, 0 );    
+                oled.printf( "state: %d\n", global_state );
+
     }
 
 }
