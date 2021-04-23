@@ -15,7 +15,7 @@
 ///////////////////////////////////////////////////////////////////////
 
 // Topic's publish
-char* topicLED = (char*) "iotkit_tobja/actors/led";
+char* topicLED = (char*) "iotkit_tobja_test/actors/led";
 // Topic's subscribe
 char* topicActors = (char*) "iotkit_tobja/actors/#";
 // MQTT Brocker
@@ -281,11 +281,6 @@ void thread_spiled_func() {
 //////////////////////////////////////////////////////////////////////
 
 
-void thread_wheel_watch_func() {
-   
-}
-
-
 
 
 //////////////////////////////////////////////////////////////////////
@@ -345,10 +340,10 @@ int main()
 
     led1 = 0;led2 = 0;led3 = 0;led4 = 0;
     
-    
     thread_spiled.start(thread_spiled_func);
-    thread_spiled.start(thread_spiled_func);
-    thread_wheel_watch.start(thread_wheel_watch_func);
+    thread_mosfetled.start(thread_mosfetled_func);
+    //thread_spiled.start(thread_spiled_func);
+    //thread_wheel_watch.start(thread_wheel_watch_func);
 
     while   ( 1 ) 
     {     
@@ -372,8 +367,7 @@ int main()
         //thread_sleep_for( 100 ); 
     }   
         
-        
-        
+
         client.yield    ( 1000 );                   // MQTT Client darf empfangen
         thread_sleep_for( 500 );
     }
