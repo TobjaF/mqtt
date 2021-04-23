@@ -74,8 +74,8 @@ void global_state_to_led();
 void publish( MQTTNetwork &mqttNetwork, MQTT::Client<MQTTNetwork, Countdown> &client, char* topic )
 {
     MQTT::Message message;    
-    oled.cursor( 2, 0 );
-    oled.printf( "Topi: %s\n", topic );
+    //oled.cursor( 2, 0 );
+    //oled.printf( "Topi: %s\n", topic );
     //oled.cursor( 3, 0 );    
     //oled.printf( "Push: %s\n", buf );
     message.qos = MQTT::QOS0;
@@ -348,7 +348,7 @@ int main()
 
     while   ( 1 ) 
     {     
-        oled.cursor( 1, 0 );
+        //oled.cursor( 1, 0 );
         wheel_newvalue = wheel.getPulses(); 
         if  ( wheel_newvalue != wheel_oldvalue ){
             if ( wheel_newvalue > wheel_oldvalue) {
@@ -367,7 +367,7 @@ int main()
             
         //mqtt publish    
             
-        oled.printf("Pulses: %6i\n", wheel_newvalue );
+        //oled.printf("Pulses: %6i\n", wheel_newvalue );
         wheel_oldvalue = wheel_newvalue;
         //thread_sleep_for( 100 ); 
     }   
