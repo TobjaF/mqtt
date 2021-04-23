@@ -282,23 +282,7 @@ void thread_spiled_func() {
 
 
 void thread_wheel_watch_func() {
-    oled.cursor( 1, 0 );
-        wheel_newvalue = wheel.getPulses(); 
-        if  ( wheel_newvalue != wheel_oldvalue ){
-            if ( wheel_newvalue > wheel_oldvalue) global_status =  (global_status + 1)%8
-            }
-            else {
-             global_status =  (global_status- 1)%8
-            }
-            
-        sprintf( buf, "%d", global_status);
-        publish( mqttNetwork, client, topicLED );    
-            
-        //mqtt publish    
-            
-        oled.printf("Pulses: %6i\n", wheel_newvalue );
-        wheel_oldvalue = wheel_newvalue;
-        thread_sleep_for( 100 );    
+   
 }
 
 
@@ -367,15 +351,29 @@ int main()
     thread_wheel_watch.start(thread_wheel_watch_func);
 
     while   ( 1 ) 
-    {
-        // Encoder
-        encoder = wheel.getRevolutions();
-        // wheel.getRevolutions();
-        sprintf( buf, "%d", encoder );
-        publish( mqttNetwork, client, topicENCODER );
+    {     
+        oled.cursor( 1, 0 );
+        wheel_newvalue = wheel.getPulses(); 
+        if  ( wheel_newvalue != wheel_oldvalue ){
+            if ( wheel_newvalue > wheel_oldvalue) {
+                global_state =  (global_state + 1)%8;
+            }
+            else {
+             global_state =  (global_state- 1)%8;
+            }
+            
+        sprintf( buf, "%d", global_state);
+        publish( mqttNetwork, client, topicLED );    
+            
+        //mqtt publish    
+            
+        oled.printf("Pulses: %6i\n", wheel_newvalue );
+        wheel_oldvalue = wheel_newvalue;
+        //thread_sleep_for( 100 ); 
+    }   
         
-        //publish( mqttNetwork, client, topicLED );
-
+        
+        
         client.yield    ( 1000 );                   // MQTT Client darf empfangen
         thread_sleep_for( 500 );
     }
